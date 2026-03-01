@@ -136,6 +136,21 @@ func (a *AgentData) ParseThinkingLevel() string {
 	return cfg.ThinkingLevel
 }
 
+// ParseMaxTokens extracts max_tokens from other_config JSONB.
+// Returns 0 if not configured (caller should use its own default).
+func (a *AgentData) ParseMaxTokens() int {
+	if len(a.OtherConfig) == 0 {
+		return 0
+	}
+	var cfg struct {
+		MaxTokens int `json:"max_tokens"`
+	}
+	if json.Unmarshal(a.OtherConfig, &cfg) != nil {
+		return 0
+	}
+	return cfg.MaxTokens
+}
+
 // AgentShareData represents an agent share grant.
 type AgentShareData struct {
 	BaseModel

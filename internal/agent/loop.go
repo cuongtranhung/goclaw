@@ -50,6 +50,7 @@ type Loop struct {
 	provider      providers.Provider
 	model         string
 	contextWindow int
+	maxTokens     int // 0 = default (8192)
 	maxIterations int
 	workspace     string
 
@@ -119,6 +120,7 @@ type LoopConfig struct {
 	Provider      providers.Provider
 	Model         string
 	ContextWindow int
+	MaxTokens     int // 0 = use default (8192)
 	MaxIterations int
 	Workspace     string
 	Bus           bus.EventPublisher
@@ -200,6 +202,7 @@ func NewLoop(cfg LoopConfig) *Loop {
 		provider:      cfg.Provider,
 		model:         cfg.Model,
 		contextWindow: cfg.ContextWindow,
+		maxTokens:     cfg.MaxTokens,
 		maxIterations: cfg.MaxIterations,
 		workspace:     cfg.Workspace,
 		eventPub:      cfg.Bus,
@@ -542,12 +545,16 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 			toolDefs = l.tools.ProviderDefs()
 		}
 
+		maxTok := l.maxTokens
+		if maxTok <= 0 {
+			maxTok = 8192
+		}
 		chatReq := providers.ChatRequest{
 			Messages: messages,
 			Tools:    toolDefs,
 			Model:    l.model,
 			Options: map[string]interface{}{
-				providers.OptMaxTokens:   8192,
+				providers.OptMaxTokens:   maxTok,
 				providers.OptTemperature: 0.7,
 			},
 		}
