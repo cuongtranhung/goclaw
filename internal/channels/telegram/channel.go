@@ -31,6 +31,8 @@ type Channel struct {
 	typingCtrls      sync.Map         // localKey string → *typing.Controller
 	streams          sync.Map         // localKey string → *DraftStream (streaming preview)
 	reactions        sync.Map         // localKey string → *StatusReactionController
+	progressMsgs     sync.Map         // localKey string → messageID int (tool progress list message)
+	toolLists        sync.Map         // localKey string → []string (accumulated tool names)
 	pairingReplySent sync.Map         // userID string → time.Time (debounce pairing replies)
 	threadIDs        sync.Map         // localKey string → messageThreadID int (for forum topic routing)
 	approvedGroups   sync.Map         // chatIDStr string → true (cached group pairing approval)
