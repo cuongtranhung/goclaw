@@ -285,6 +285,14 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload interface{})
 			if err := sc.OnStreamEnd(ctx, rc.ChatID, ""); err != nil {
 				slog.Debug("stream tool-phase end failed", "channel", rc.ChannelName, "error", err)
 			}
+			// After OnStreamEnd gives the DraftStream message back as placeholder,
+			// update that placeholder with the tool progress text.
+			if progressCh, ok := ch.(ProgressChannel); ok {
+				toolName := extractPayloadString(payload, "name")
+				if err := progressCh.OnProgressEvent(ctx, rc.ChatID, toolName); err != nil {
+					slog.Debug("progress event failed", "channel", rc.ChannelName, "tool", toolName, "error", err)
+				}
+			}
 		case protocol.ChatEventChunk:
 			// Accumulate chunk deltas into full text.
 			// When entering a new LLM iteration (first chunk after tool.call),

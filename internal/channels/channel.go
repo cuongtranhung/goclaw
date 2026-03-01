@@ -93,6 +93,14 @@ type ReactionChannel interface {
 	ClearReaction(ctx context.Context, chatID string, messageID int) error
 }
 
+// ProgressChannel extends Channel with tool execution progress display support.
+// Channels that implement this interface can show inline progress messages
+// (e.g., editing a placeholder to show which tool is currently running).
+type ProgressChannel interface {
+	Channel
+	OnProgressEvent(ctx context.Context, chatID string, toolName string) error
+}
+
 // BaseChannel provides shared functionality for all channel implementations.
 // Channel implementations should embed this struct.
 type BaseChannel struct {

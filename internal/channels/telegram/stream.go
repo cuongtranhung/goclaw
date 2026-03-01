@@ -134,6 +134,74 @@ func (ds *DraftStream) flush(ctx context.Context) error {
 	return nil
 }
 
+// toolProgressText returns a Vietnamese progress message for a given tool name.
+func toolProgressText(toolName string) string {
+	texts := map[string]string{
+		"web_search":     "🔍 Đang tìm kiếm web...",
+		"read_file":      "📖 Đang đọc tệp...",
+		"write_file":     "✏️ Đang ghi tệp...",
+		"edit_file":      "✏️ Đang sửa tệp...",
+		"list_files":     "📂 Đang liệt kê tệp...",
+		"run_bash":       "⚙️ Đang chạy lệnh...",
+		"create_image":   "🎨 Đang tạo ảnh...",
+		"http_request":   "🌐 Đang gửi yêu cầu HTTP...",
+		"think":          "💭 Đang suy nghĩ...",
+		"read_url":       "🌐 Đang đọc URL...",
+		"memory_search":  "🧠 Đang tìm kiếm bộ nhớ...",
+		"memory_write":   "🧠 Đang ghi nhớ...",
+		"memory_delete":  "🧠 Đang xóa bộ nhớ...",
+		"python":         "🐍 Đang chạy Python...",
+		"js":             "⚙️ Đang chạy JavaScript...",
+		"send_message":   "📨 Đang gửi tin nhắn...",
+		"read_memory":    "🧠 Đang đọc bộ nhớ...",
+		"search_memory":  "🧠 Đang tìm kiếm bộ nhớ...",
+		"list_memory":    "🧠 Đang xem bộ nhớ...",
+		"create_task":    "📋 Đang tạo nhiệm vụ...",
+		"update_task":    "📋 Đang cập nhật nhiệm vụ...",
+		"list_tasks":     "📋 Đang xem danh sách nhiệm vụ...",
+		"get_task":       "📋 Đang xem nhiệm vụ...",
+		"image_generate": "🎨 Đang tạo ảnh...",
+		"tts":            "🔊 Đang tạo giọng nói...",
+		"stt":            "🎤 Đang nhận dạng giọng nói...",
+		"subagent":       "🤖 Đang giao việc cho trợ lý...",
+		"delegate":       "🤖 Đang ủy thác cho trợ lý...",
+	}
+	if text, ok := texts[toolName]; ok {
+		return text
+	}
+	return "⚙️ Đang xử lý: " + toolName + "..."
+}
+
+// OnProgressEvent updates the placeholder message with tool progress information.
+// Shows which tool is currently being executed between LLM iterations.
+func (c *Channel) OnProgressEvent(ctx context.Context, chatID string, toolName string) error {
+	if c.config.StreamMode != "partial" {
+		return nil
+	}
+
+	pID, ok := c.placeholders.Load(chatID)
+	if !ok {
+		return nil
+	}
+
+	id, err := parseRawChatID(chatID)
+	if err != nil {
+		return err
+	}
+
+	msgID := pID.(int)
+	text := toolProgressText(toolName)
+
+	editMsg := tu.EditMessageText(tu.ID(id), msgID, text)
+	if _, err := c.bot.EditMessageText(ctx, editMsg); err != nil {
+		if !messageNotModifiedRe.MatchString(err.Error()) {
+			slog.Debug("progress: failed to edit placeholder", "tool", toolName, "error", err)
+		}
+	}
+
+	return nil
+}
+
 // Stop finalizes the stream with a final edit.
 func (ds *DraftStream) Stop(ctx context.Context) error {
 	ds.mu.Lock()
