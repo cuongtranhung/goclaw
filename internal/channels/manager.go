@@ -271,27 +271,24 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload interface{})
 	if sc, ok := ch.(StreamingChannel); ok {
 		switch eventType {
 		case protocol.AgentEventRunStarted:
-			if err := sc.OnStreamStart(ctx, rc.ChatID); err != nil {
-				slog.Debug("stream start failed", "channel", rc.ChannelName, "error", err)
+			// When the channel supports progress display, skip OnStreamStart here.
+			// "thinking" will be shown in the progress list instead, and the
+			// DraftStream will be created on demand when the first chunk arrives.
+			if _, hasProgress := ch.(ProgressChannel); !hasProgress {
+				if err := sc.OnStreamStart(ctx, rc.ChatID); err != nil {
+					slog.Debug("stream start failed", "channel", rc.ChannelName, "error", err)
+				}
 			}
 		case protocol.AgentEventToolCall:
 			// Agent is executing a tool — mark tool phase so the next chunk
 			// (new LLM iteration) resets the stream buffer.
-			// Also clear the current DraftStream so the next iteration starts
-			// a fresh streaming message (matching TS onAssistantMessageStart pattern).
+			// Stop the current DraftStream (if any) so the next iteration
+			// starts a fresh streaming message.
 			rc.mu.Lock()
 			rc.inToolPhase = true
 			rc.mu.Unlock()
 			if err := sc.OnStreamEnd(ctx, rc.ChatID, ""); err != nil {
 				slog.Debug("stream tool-phase end failed", "channel", rc.ChannelName, "error", err)
-			}
-			// After OnStreamEnd gives the DraftStream message back as placeholder,
-			// update that placeholder with the tool progress text.
-			if progressCh, ok := ch.(ProgressChannel); ok {
-				toolName := extractPayloadString(payload, "name")
-				if err := progressCh.OnProgressEvent(ctx, rc.ChatID, toolName); err != nil {
-					slog.Debug("progress event failed", "channel", rc.ChannelName, "tool", toolName, "error", err)
-				}
 			}
 		case protocol.ChatEventChunk:
 			// Accumulate chunk deltas into full text.
@@ -328,6 +325,30 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload interface{})
 		case protocol.AgentEventRunFailed:
 			// Clean up streaming state
 			_ = sc.OnStreamEnd(ctx, rc.ChatID, "")
+		}
+	}
+
+	// Forward to ProgressChannel — maintains the tool-action list in chat.
+	if progressCh, ok := ch.(ProgressChannel); ok {
+		switch eventType {
+		case protocol.AgentEventRunStarted:
+			// Show "thinking" as the first item. The placeholder message sent by
+			// handlers.go becomes the progress list message.
+			if err := progressCh.OnProgressEvent(ctx, rc.ChatID, "_thinking_"); err != nil {
+				slog.Debug("progress thinking failed", "channel", rc.ChannelName, "error", err)
+			}
+		case protocol.AgentEventToolCall:
+			// Append the tool to the list after the StreamingChannel has stopped
+			// the current DraftStream (giving its message back to placeholders).
+			toolName := extractPayloadString(payload, "name")
+			if err := progressCh.OnProgressEvent(ctx, rc.ChatID, toolName); err != nil {
+				slog.Debug("progress event failed", "channel", rc.ChannelName, "tool", toolName, "error", err)
+			}
+		case protocol.AgentEventRunCompleted, protocol.AgentEventRunFailed:
+			// Clean up any remaining progress list (e.g., run failed before any chunks).
+			if err := progressCh.OnProgressClear(ctx, rc.ChatID); err != nil {
+				slog.Debug("progress clear failed", "channel", rc.ChannelName, "error", err)
+			}
 		}
 	}
 

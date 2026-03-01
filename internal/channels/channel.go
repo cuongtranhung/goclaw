@@ -98,7 +98,13 @@ type ReactionChannel interface {
 // (e.g., editing a placeholder to show which tool is currently running).
 type ProgressChannel interface {
 	Channel
+	// OnProgressEvent appends a tool name to the per-chat progress list and
+	// updates the progress message in chat. Use "_thinking_" as toolName on
+	// run.started to display the initial "Suy nghĩ" entry.
 	OnProgressEvent(ctx context.Context, chatID string, toolName string) error
+	// OnProgressClear removes the progress list message. Called on terminal
+	// events (run.failed, run.completed) when OnStreamStart won't be triggered.
+	OnProgressClear(ctx context.Context, chatID string) error
 }
 
 // BaseChannel provides shared functionality for all channel implementations.

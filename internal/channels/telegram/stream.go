@@ -138,6 +138,7 @@ func (ds *DraftStream) flush(ctx context.Context) error {
 // toolShortName returns a concise Vietnamese label for a tool name.
 func toolShortName(toolName string) string {
 	names := map[string]string{
+		"_thinking_":     "💭 Suy nghĩ",
 		"web_search":     "🔍 Tìm kiếm web",
 		"read_file":      "📖 Đọc tệp",
 		"write_file":     "✏️ Ghi tệp",
@@ -272,6 +273,17 @@ func (c *Channel) OnProgressEvent(ctx context.Context, chatID string, toolName s
 	return nil
 }
 
+// OnProgressClear removes the progress list message and resets all tracking state.
+// Called on terminal events (run.failed, run.completed) to ensure cleanup.
+func (c *Channel) OnProgressClear(ctx context.Context, chatID string) error {
+	id, err := parseRawChatID(chatID)
+	if err != nil {
+		return err
+	}
+	c.clearProgressList(ctx, chatID, id)
+	return nil
+}
+
 // Stop finalizes the stream with a final edit.
 func (ds *DraftStream) Stop(ctx context.Context) error {
 	ds.mu.Lock()
@@ -343,9 +355,33 @@ func (c *Channel) OnStreamStart(ctx context.Context, chatID string) error {
 }
 
 // OnChunkEvent updates the streaming message with accumulated content.
+// When no DraftStream exists yet (e.g., LLM responds directly without calling
+// any tools), it clears the progress list and creates the DraftStream on demand.
 func (c *Channel) OnChunkEvent(ctx context.Context, chatID string, fullText string) error {
 	if c.config.StreamMode != "partial" {
 		return nil
+	}
+
+	// Auto-create DraftStream if it doesn't exist yet.
+	// This happens when the LLM starts responding without calling any tools first
+	// (run.started set up the progress list, but OnStreamStart was never called).
+	if _, ok := c.streams.Load(chatID); !ok {
+		id, err := parseRawChatID(chatID)
+		if err != nil {
+			return err
+		}
+		// Clear progress list (e.g., the "thinking" entry added on run.started).
+		c.clearProgressList(ctx, chatID, id)
+		// Also delete any remaining "Thinking..." placeholder.
+		if pID, ok := c.placeholders.LoadAndDelete(chatID); ok {
+			_ = c.deleteMessage(ctx, id, pID.(int))
+		}
+		threadID := 0
+		if v, ok := c.threadIDs.Load(chatID); ok {
+			threadID = v.(int)
+		}
+		ds := newDraftStream(c.bot, id, 0, threadID)
+		c.streams.Store(chatID, ds)
 	}
 
 	val, ok := c.streams.Load(chatID)
@@ -362,14 +398,9 @@ func (c *Channel) OnChunkEvent(ctx context.Context, chatID string, fullText stri
 // Instead of doing a final edit here, we hand the DraftStream's messageID
 // back to the placeholders map so that Send() can edit it with the properly
 // formatted final response. This avoids duplicate messages.
-// Also cleans up any orphaned progress list (e.g., on run.failed).
 func (c *Channel) OnStreamEnd(ctx context.Context, chatID string, _ string) error {
 	val, ok := c.streams.Load(chatID)
 	if !ok {
-		// No active DraftStream — clean up any orphaned progress list.
-		if id, err := parseRawChatID(chatID); err == nil {
-			c.clearProgressList(ctx, chatID, id)
-		}
 		return nil
 	}
 
@@ -387,11 +418,6 @@ func (c *Channel) OnStreamEnd(ctx context.Context, chatID string, _ string) erro
 	// edit it with the final formatted content instead of creating a new message.
 	if msgID != 0 {
 		c.placeholders.Store(chatID, msgID)
-	}
-
-	// Clean up any orphaned progress list (e.g., if run failed after tool calls).
-	if id, err := parseRawChatID(chatID); err == nil {
-		c.clearProgressList(ctx, chatID, id)
 	}
 
 	// Stop thinking animation
