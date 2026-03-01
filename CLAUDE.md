@@ -53,6 +53,14 @@ ui/web/                       React SPA (pnpm, Vite, Tailwind, Radix UI)
 - **Security:** Rate limiting, input guard (detection-only), CORS, shell deny patterns, SSRF protection, path traversal prevention, AES-256-GCM encryption. All security logs: `slog.Warn("security.*")`
 - **Telegram formatting:** LLM output → `SanitizeAssistantContent()` → `markdownToTelegramHTML()` → `chunkHTML()` → `sendHTML()`. Tables rendered as ASCII in `<pre>` tags
 
+## Git Workflow
+
+- **Luôn làm việc trên branch `my-changes`**. Khi bắt đầu session, kiểm tra và checkout branch này nếu chưa ở đó:
+  ```bash
+  git checkout my-changes
+  ```
+- Mọi thay đổi code đều phải được commit vào branch `my-changes`, không commit trực tiếp vào `main`.
+
 ## Running
 
 ```bash

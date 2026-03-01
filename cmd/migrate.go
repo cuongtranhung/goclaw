@@ -11,7 +11,7 @@ import (
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/spf13/cobra"
 
@@ -39,7 +39,12 @@ func resolveMigrationsDir() string {
 
 func newMigrator(dsn string) (*migrate.Migrate, error) {
 	dir := resolveMigrationsDir()
-	m, err := migrate.New("file://"+dir, dsn)
+	fsys := os.DirFS(dir)
+	d, err := iofs.New(fsys, ".")
+	if err != nil {
+		return nil, fmt.Errorf("create migrator source: %w", err)
+	}
+	m, err := migrate.NewWithSourceInstance("iofs", d, dsn)
 	if err != nil {
 		return nil, fmt.Errorf("create migrator: %w", err)
 	}
