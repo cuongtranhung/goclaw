@@ -123,6 +123,16 @@ func (c *Config) applyEnvOverrides() {
 	envStr("GOCLAW_TTS_MINIMAX_API_KEY", &c.Tts.MiniMax.APIKey)
 	envStr("GOCLAW_TTS_MINIMAX_GROUP_ID", &c.Tts.MiniMax.GroupID)
 
+	// MinIO
+	envStr("GOCLAW_MINIO_ENDPOINT",          &c.MinIO.Endpoint)
+	envStr("GOCLAW_MINIO_DOWNLOAD_ENDPOINT", &c.MinIO.DownloadEndpoint)
+	envStr("GOCLAW_MINIO_ACCESS_KEY",        &c.MinIO.AccessKey)
+	envStr("GOCLAW_MINIO_SECRET_KEY",        &c.MinIO.SecretKey)
+	envStr("GOCLAW_MINIO_BUCKET",            &c.MinIO.Bucket)
+	if v := os.Getenv("GOCLAW_MINIO_PUBLIC_ACCESS"); v != "" {
+		c.MinIO.PublicAccess = v == "true" || v == "1"
+	}
+
 	// Auto-enable channels if credentials are provided via env
 	if c.Channels.Telegram.Token != "" {
 		c.Channels.Telegram.Enabled = true

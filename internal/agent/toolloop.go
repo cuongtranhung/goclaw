@@ -11,8 +11,8 @@ import (
 // Tool loop detection thresholds (per-run, not per-session).
 const (
 	toolLoopHistorySize       = 30
-	toolLoopWarningThreshold  = 3 // inject warning into conversation
-	toolLoopCriticalThreshold = 5 // force stop the iteration loop
+	toolLoopWarningThreshold  = 3 // inject strong warning into conversation
+	toolLoopCriticalThreshold = 4 // force stop after one more ignored warning
 )
 
 // toolLoopState tracks recent tool calls within a single agent run
@@ -89,9 +89,14 @@ func (s *toolLoopState) detect(toolName string, argsHash string) (level, message
 
 	if noProgressCount >= toolLoopWarningThreshold {
 		return "warning", fmt.Sprintf(
-			"[System: WARNING — %s has been called %d times with the same arguments and identical results. "+
-				"This is not making progress. Try a completely different approach, use different tools, "+
-				"or respond directly to the user with what you know.]", toolName, noProgressCount)
+			"[SYSTEM STOP] You have called '%s' %d times with identical arguments and received identical results. "+
+				"This tool call is NOT making progress and will NOT produce a different result. "+
+				"You MUST stop calling this tool immediately. "+
+				"Do NOT call '%s' again. "+
+				"Instead, respond to the user right now with what you have found so far, "+
+				"or clearly explain what you need from the user to proceed. "+
+				"Continuing to call the same tool will abort the task.",
+			toolName, noProgressCount, toolName)
 	}
 
 	return "", ""

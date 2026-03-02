@@ -48,7 +48,7 @@ func DefaultQueueConfig() QueueConfig {
 		Cap:           10,
 		Drop:          DropOld,
 		DebounceMs:    800,
-		MaxConcurrent: 1,
+		MaxConcurrent: 5,
 	}
 }
 

@@ -36,6 +36,12 @@ type Info struct {
 	Description string `json:"description"`
 }
 
+// extraSkillDir is an extra skill directory registered at runtime.
+type extraSkillDir struct {
+	dir    string
+	source string
+}
+
 // Loader discovers and loads SKILL.md files from multiple directories.
 type Loader struct {
 	// Skill directories in priority order (highest first).
@@ -45,6 +51,9 @@ type Loader struct {
 	personalAgentSkills  string // ~/.agents/skills/
 	globalSkills         string // ~/.goclaw/skills/
 	builtinSkills        string // bundled with binary
+
+	// Extra directories registered at runtime (e.g. per-user workspace dirs in managed mode).
+	extraDirs []extraSkillDir
 
 	mu    sync.RWMutex
 	cache map[string]*Info // name → info (lazily populated)
@@ -83,6 +92,14 @@ func NewLoader(workspace, globalSkills, builtinSkills string) *Loader {
 	}
 }
 
+// AddSkillDir registers an extra skill directory to scan (e.g. per-user workspace dirs
+// in managed mode). Lower priority than the built-in hierarchy but higher than builtin.
+func (l *Loader) AddSkillDir(dir, source string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.extraDirs = append(l.extraDirs, extraSkillDir{dir: dir, source: source})
+}
+
 // ListSkills returns all available skills, respecting the priority hierarchy.
 // Higher-priority sources override lower ones by name.
 func (l *Loader) ListSkills() []Info {
@@ -92,17 +109,24 @@ func (l *Loader) ListSkills() []Info {
 	seen := make(map[string]bool)
 	var skills []Info
 
-	// Priority: workspace > project-agents > personal-agents > global > builtin
-	for _, src := range []struct {
+	// Build source list: fixed hierarchy + extra dirs (inserted after globalSkills, before builtin)
+	type srcEntry struct {
 		dir    string
 		source string
-	}{
+	}
+	srcs := []srcEntry{
 		{l.workspaceSkills, "workspace"},
 		{l.projectAgentSkills, "agents-project"},
 		{l.personalAgentSkills, "agents-personal"},
 		{l.globalSkills, "global"},
-		{l.builtinSkills, "builtin"},
-	} {
+	}
+	for _, e := range l.extraDirs {
+		srcs = append(srcs, srcEntry{e.dir, e.source})
+	}
+	srcs = append(srcs, srcEntry{l.builtinSkills, "builtin"})
+
+	// Priority: workspace > project-agents > personal-agents > global > extra > builtin
+	for _, src := range srcs {
 		if src.dir == "" {
 			continue
 		}
@@ -143,7 +167,17 @@ func (l *Loader) ListSkills() []Info {
 // LoadSkill reads and returns the content of a skill by name (frontmatter stripped).
 // The {baseDir} placeholder in SKILL.md is replaced with the skill's absolute directory path.
 func (l *Loader) LoadSkill(name string) (string, bool) {
-	for _, dir := range []string{l.workspaceSkills, l.projectAgentSkills, l.personalAgentSkills, l.globalSkills, l.builtinSkills} {
+	l.mu.RLock()
+	extraDirs := l.extraDirs
+	l.mu.RUnlock()
+
+	dirs := []string{l.workspaceSkills, l.projectAgentSkills, l.personalAgentSkills, l.globalSkills}
+	for _, e := range extraDirs {
+		dirs = append(dirs, e.dir)
+	}
+	dirs = append(dirs, l.builtinSkills)
+
+	for _, dir := range dirs {
 		if dir == "" {
 			continue
 		}
@@ -250,10 +284,19 @@ func (l *Loader) BumpVersion() {
 
 // Dirs returns all non-empty skill directories (for the watcher to monitor).
 func (l *Loader) Dirs() []string {
+	l.mu.RLock()
+	extraDirs := l.extraDirs
+	l.mu.RUnlock()
+
 	var dirs []string
 	for _, d := range []string{l.workspaceSkills, l.projectAgentSkills, l.personalAgentSkills, l.globalSkills, l.builtinSkills} {
 		if d != "" {
 			dirs = append(dirs, d)
+		}
+	}
+	for _, e := range extraDirs {
+		if e.dir != "" {
+			dirs = append(dirs, e.dir)
 		}
 	}
 	return dirs

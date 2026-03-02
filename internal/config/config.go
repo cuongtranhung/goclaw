@@ -49,6 +49,7 @@ type Config struct {
 	Database  DatabaseConfig  `json:"database,omitempty"`
 	Tts       TtsConfig       `json:"tts,omitempty"`
 	Cron      CronConfig      `json:"cron,omitempty"`
+	MinIO     MinIOConfig     `json:"minio,omitempty"`
 	Telemetry TelemetryConfig `json:"telemetry,omitempty"`
 	Tailscale TailscaleConfig `json:"tailscale,omitempty"`
 	Bindings  []AgentBinding  `json:"bindings,omitempty"`

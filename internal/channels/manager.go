@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
+	minio_storage "github.com/nextlevelbuilder/goclaw/internal/storage/minio"
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
 
@@ -29,6 +31,18 @@ type Manager struct {
 	runs         sync.Map // runID string → *RunContext
 	dispatchTask *asyncTask
 	mu           sync.RWMutex
+
+	// minioMedia, when non-nil, auto-uploads temp media files to MinIO before dispatch.
+	minioMedia *minio_storage.MediaStore
+}
+
+// SetMinioMediaStore enables automatic upload of temp media files to MinIO.
+// When set, media items with local file paths are uploaded and their URLs
+// replaced with presigned MinIO URLs before being sent to channels.
+func (m *Manager) SetMinioMediaStore(store *minio_storage.MediaStore) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.minioMedia = store
 }
 
 type asyncTask struct {
@@ -127,6 +141,25 @@ func (m *Manager) dispatchOutbound(ctx context.Context) {
 				continue
 			}
 
+			// MinIO backend: upload local temp files to MinIO and replace with presigned URLs.
+			// This allows channels (e.g. Telegram) to fetch media via URL instead of local path,
+			// and the files persist in MinIO beyond the send operation.
+			m.mu.RLock()
+			minioMedia := m.minioMedia
+			m.mu.RUnlock()
+			if minioMedia != nil {
+				for i := range msg.Media {
+					if !isHTTPURL(msg.Media[i].URL) {
+						if presignedURL, err := minioMedia.UploadMedia(ctx, msg.Media[i].URL, msg.Media[i].ContentType); err == nil {
+							msg.Media[i].URL = presignedURL
+						} else {
+							slog.Warn("MinIO media upload failed, using local file",
+								"path", msg.Media[i].URL, "error", err)
+						}
+					}
+				}
+			}
+
 			if err := channel.Send(ctx, msg); err != nil {
 				slog.Error("error sending message to channel",
 					"channel", msg.Channel,
@@ -136,8 +169,9 @@ func (m *Manager) dispatchOutbound(ctx context.Context) {
 
 			// Clean up temporary media files after successful (or failed) send.
 			// Files are created by tools (create_image, tts) and only needed for the send.
+			// Skip cleanup when the URL is already an HTTP(S) address (uploaded to MinIO).
 			for _, media := range msg.Media {
-				if media.URL != "" {
+				if media.URL != "" && !isHTTPURL(media.URL) {
 					if err := os.Remove(media.URL); err != nil {
 						slog.Debug("failed to clean up media file", "path", media.URL, "error", err)
 					}
@@ -391,6 +425,11 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload interface{})
 	if eventType == protocol.AgentEventRunCompleted || eventType == protocol.AgentEventRunFailed {
 		m.runs.Delete(runID)
 	}
+}
+
+// isHTTPURL reports whether s is an HTTP or HTTPS URL.
+func isHTTPURL(s string) bool {
+	return strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://")
 }
 
 // extractPayloadString extracts a string field from a payload (map[string]string or map[string]interface{}).

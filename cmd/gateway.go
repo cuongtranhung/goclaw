@@ -33,6 +33,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/store/file"
 	"github.com/nextlevelbuilder/goclaw/internal/store/pg"
 	mcpbridge "github.com/nextlevelbuilder/goclaw/internal/mcp"
+	minio_storage "github.com/nextlevelbuilder/goclaw/internal/storage/minio"
 	"github.com/nextlevelbuilder/goclaw/internal/tools"
 	"github.com/nextlevelbuilder/goclaw/internal/tracing"
 	"github.com/nextlevelbuilder/goclaw/pkg/browser"
@@ -451,6 +452,25 @@ func runGateway() {
 		globalSkillsDir = filepath.Join(config.ExpandHome("~/.goclaw"), "skills")
 	}
 	skillsLoader := skills.NewLoader(workspace, globalSkillsDir, "")
+
+	// Managed mode: also scan per-user workspace subdirectories for skills.
+	// In managed mode, the workspace root is shared; each user's skills live at
+	// <workspace>/<userID>/.agents/skills/ (migrated from standalone mode).
+	if cfg.Database.Mode == "managed" {
+		if entries, err := os.ReadDir(workspace); err == nil {
+			for _, e := range entries {
+				if !e.IsDir() {
+					continue
+				}
+				userSkillsDir := filepath.Join(workspace, e.Name(), ".agents", "skills")
+				if info, err := os.Stat(userSkillsDir); err == nil && info.IsDir() {
+					skillsLoader.AddSkillDir(userSkillsDir, "user-workspace")
+					slog.Info("skills: registered per-user skill dir", "dir", userSkillsDir)
+				}
+			}
+		}
+	}
+
 	skillSearchTool := tools.NewSkillSearchTool(skillsLoader)
 	toolsReg.Register(skillSearchTool)
 	slog.Info("skill_search tool registered", "skills", len(skillsLoader.ListSkills()))
@@ -473,6 +493,32 @@ func runGateway() {
 						slog.Info("skill embeddings backfill complete", "skills_updated", count)
 					}
 				}()
+			}
+		}
+	}
+
+	// MinIO storage — tool registration (media store wired after channelMgr is created below)
+	var minioMediaStoreClient *minio_storage.Client
+	if cfg.MinIO.IsEnabled() {
+		minioClient, err := minio_storage.New(cfg.MinIO)
+		if err != nil {
+			slog.Error("MinIO init failed", "error", err)
+		} else {
+			// Ensure bucket exists
+			if err := minioClient.EnsureBucket(context.Background()); err != nil {
+				slog.Warn("MinIO: bucket ensure failed (continuing without bucket creation)", "error", err)
+			}
+			// Register agent tools
+			toolsReg.Register(tools.NewMinioUploadTool(minioClient))
+			toolsReg.Register(tools.NewMinioDownloadTool(minioClient))
+			toolsReg.Register(tools.NewMinioListTool(minioClient))
+			toolsReg.Register(tools.NewMinioDeleteTool(minioClient))
+			toolsReg.Register(tools.NewMinioPresignTool(minioClient))
+			slog.Info("MinIO tools registered",
+				"endpoint", cfg.MinIO.Endpoint,
+				"bucket", cfg.MinIO.Bucket)
+			if cfg.MinIO.MediaStore.Enabled {
+				minioMediaStoreClient = minioClient
 			}
 		}
 	}
@@ -665,6 +711,15 @@ func runGateway() {
 		if cs, ok := t.(tools.ChannelSenderAware); ok {
 			cs.SetChannelSender(channelMgr.SendToChannel)
 		}
+	}
+
+	// Wire MinIO media store into channel manager (must happen after channelMgr is created)
+	if minioMediaStoreClient != nil {
+		mediaStore := minio_storage.NewMediaStore(minioMediaStoreClient, cfg.MinIO.MediaStore)
+		channelMgr.SetMinioMediaStore(mediaStore)
+		slog.Info("MinIO media store wired into channel manager",
+			"presign_expiry_min", cfg.MinIO.MediaStore.PresignExpiry,
+			"key_prefix", cfg.MinIO.MediaStore.KeyPrefix)
 	}
 
 	// Managed mode: load channel instances from DB first.

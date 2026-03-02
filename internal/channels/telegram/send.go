@@ -15,6 +15,20 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/channels/typing"
 )
 
+// openInputFile returns a telego.InputFile for either a local file path or an
+// HTTP(S) URL. For local files it opens the file and returns a closer; for URLs
+// the closer is a no-op. The caller must always invoke the returned closer.
+func openInputFile(urlOrPath string) (telego.InputFile, func(), error) {
+	if strings.HasPrefix(urlOrPath, "http://") || strings.HasPrefix(urlOrPath, "https://") {
+		return tu.FileFromURL(urlOrPath), func() {}, nil
+	}
+	file, err := os.Open(urlOrPath)
+	if err != nil {
+		return telego.InputFile{}, func() {}, err
+	}
+	return telego.InputFile{File: file}, func() { file.Close() }, nil
+}
+
 // Error patterns for graceful handling (matching TS error constants in send.ts).
 var (
 	parseErrRe           = regexp.MustCompile(`(?i)can't parse entities|parse entities|find end of the entity`)
@@ -214,15 +228,15 @@ func (c *Channel) sendHTML(ctx context.Context, chatID int64, html string, reply
 
 // sendPhoto sends a photo message.
 func (c *Channel) sendPhoto(ctx context.Context, chatID telego.ChatID, filePath, caption string, replyTo, threadID int) error {
-	file, err := os.Open(filePath)
+	inputFile, closer, err := openInputFile(filePath)
 	if err != nil {
 		return fmt.Errorf("open photo %s: %w", filePath, err)
 	}
-	defer file.Close()
+	defer closer()
 
 	params := &telego.SendPhotoParams{
 		ChatID:  chatID,
-		Photo:   telego.InputFile{File: file},
+		Photo:   inputFile,
 		Caption: caption,
 	}
 	if caption != "" {
@@ -241,15 +255,15 @@ func (c *Channel) sendPhoto(ctx context.Context, chatID telego.ChatID, filePath,
 
 // sendVideo sends a video message.
 func (c *Channel) sendVideo(ctx context.Context, chatID telego.ChatID, filePath, caption string, replyTo, threadID int) error {
-	file, err := os.Open(filePath)
+	inputFile, closer, err := openInputFile(filePath)
 	if err != nil {
 		return fmt.Errorf("open video %s: %w", filePath, err)
 	}
-	defer file.Close()
+	defer closer()
 
 	params := &telego.SendVideoParams{
 		ChatID:  chatID,
-		Video:   telego.InputFile{File: file},
+		Video:   inputFile,
 		Caption: caption,
 	}
 	if caption != "" {
@@ -268,15 +282,15 @@ func (c *Channel) sendVideo(ctx context.Context, chatID telego.ChatID, filePath,
 
 // sendAudio sends an audio message.
 func (c *Channel) sendAudio(ctx context.Context, chatID telego.ChatID, filePath, caption string, replyTo, threadID int) error {
-	file, err := os.Open(filePath)
+	inputFile, closer, err := openInputFile(filePath)
 	if err != nil {
 		return fmt.Errorf("open audio %s: %w", filePath, err)
 	}
-	defer file.Close()
+	defer closer()
 
 	params := &telego.SendAudioParams{
 		ChatID:  chatID,
-		Audio:   telego.InputFile{File: file},
+		Audio:   inputFile,
 		Caption: caption,
 	}
 	if caption != "" {
@@ -295,15 +309,15 @@ func (c *Channel) sendAudio(ctx context.Context, chatID telego.ChatID, filePath,
 
 // sendDocument sends a document/file message.
 func (c *Channel) sendDocument(ctx context.Context, chatID telego.ChatID, filePath, caption string, replyTo, threadID int) error {
-	file, err := os.Open(filePath)
+	inputFile, closer, err := openInputFile(filePath)
 	if err != nil {
 		return fmt.Errorf("open document %s: %w", filePath, err)
 	}
-	defer file.Close()
+	defer closer()
 
 	params := &telego.SendDocumentParams{
 		ChatID:   chatID,
-		Document: telego.InputFile{File: file},
+		Document: inputFile,
 		Caption:  caption,
 	}
 	if caption != "" {

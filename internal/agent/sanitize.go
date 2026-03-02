@@ -298,13 +298,36 @@ func stripMediaPaths(content string) string {
 		}
 		// Strip any line containing a MEDIA: path reference, regardless of wrapping format.
 		// LLMs echo these in many forms: bare "MEDIA:/path", markdown "![alt](MEDIA:/path)",
-		// JSON '{"image":"MEDIA:/path"}', etc. The /tmp/ or / after MEDIA: confirms it's a path.
-		if strings.Contains(trimmed, "MEDIA:/") {
+		// JSON '{"image":"MEDIA:/path"}', etc.
+		// Handles both Unix paths (MEDIA:/) and Windows paths (MEDIA:C:\ or MEDIA:D:\).
+		if containsMediaPath(trimmed) {
 			continue
 		}
 		result = append(result, line)
 	}
 	return strings.TrimSpace(strings.Join(result, "\n"))
+}
+
+// containsMediaPath reports whether s contains a MEDIA: path reference.
+// Matches Unix paths (MEDIA:/) and Windows absolute paths (MEDIA:X:\ where X is a drive letter).
+func containsMediaPath(s string) bool {
+	idx := strings.Index(s, "MEDIA:")
+	if idx < 0 {
+		return false
+	}
+	rest := s[idx+6:]
+	if rest == "" {
+		return false
+	}
+	// Unix path: MEDIA:/...
+	if rest[0] == '/' {
+		return true
+	}
+	// Windows absolute path: MEDIA:C:\ or MEDIA:C:/
+	if len(rest) >= 3 && rest[1] == ':' && (rest[2] == '\\' || rest[2] == '/') {
+		return true
+	}
+	return false
 }
 
 // --- 8. Strip leading blank lines ---
