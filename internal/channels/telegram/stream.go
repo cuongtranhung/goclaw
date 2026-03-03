@@ -135,43 +135,45 @@ func (ds *DraftStream) flush(ctx context.Context) error {
 	return nil
 }
 
+// toolShortNames maps tool names to concise Vietnamese labels.
+var toolShortNames = map[string]string{
+	"_thinking_":     "💭 Suy nghĩ",
+	"web_search":     "🔍 Tìm kiếm web",
+	"read_file":      "📖 Đọc tệp",
+	"write_file":     "✏️ Ghi tệp",
+	"edit_file":      "✏️ Chỉnh sửa tệp",
+	"list_files":     "📂 Liệt kê tệp",
+	"run_bash":       "⚙️ Chạy lệnh shell",
+	"create_image":   "🎨 Tạo ảnh",
+	"http_request":   "🌐 Gửi HTTP request",
+	"think":          "💭 Suy nghĩ",
+	"read_url":       "🌐 Đọc URL",
+	"web_fetch":      "🌐 Tải trang web",
+	"memory_search":  "🧠 Tìm kiếm bộ nhớ",
+	"memory_write":   "🧠 Ghi nhớ",
+	"memory_delete":  "🧠 Xóa bộ nhớ",
+	"memory_get":     "🧠 Đọc bộ nhớ",
+	"python":         "🐍 Chạy Python",
+	"js":             "⚙️ Chạy JavaScript",
+	"send_message":   "📨 Gửi tin nhắn",
+	"read_memory":    "🧠 Đọc bộ nhớ",
+	"search_memory":  "🧠 Tìm kiếm bộ nhớ",
+	"list_memory":    "🧠 Xem bộ nhớ",
+	"create_task":    "📋 Tạo nhiệm vụ",
+	"update_task":    "📋 Cập nhật nhiệm vụ",
+	"list_tasks":     "📋 Xem nhiệm vụ",
+	"get_task":       "📋 Xem nhiệm vụ",
+	"image_generate": "🎨 Tạo ảnh",
+	"tts":            "🔊 Tạo giọng nói",
+	"stt":            "🎤 Nhận dạng giọng nói",
+	"subagent":       "🤖 Giao việc cho trợ lý",
+	"spawn":          "🤖 Tạo trợ lý phụ",
+	"delegate":       "🤖 Ủy thác cho trợ lý",
+}
+
 // toolShortName returns a concise Vietnamese label for a tool name.
 func toolShortName(toolName string) string {
-	names := map[string]string{
-		"_thinking_":     "💭 Suy nghĩ",
-		"web_search":     "🔍 Tìm kiếm web",
-		"read_file":      "📖 Đọc tệp",
-		"write_file":     "✏️ Ghi tệp",
-		"edit_file":      "✏️ Chỉnh sửa tệp",
-		"list_files":     "📂 Liệt kê tệp",
-		"run_bash":       "⚙️ Chạy lệnh shell",
-		"create_image":   "🎨 Tạo ảnh",
-		"http_request":   "🌐 Gửi HTTP request",
-		"think":          "💭 Suy nghĩ",
-		"read_url":       "🌐 Đọc URL",
-		"web_fetch":      "🌐 Tải trang web",
-		"memory_search":  "🧠 Tìm kiếm bộ nhớ",
-		"memory_write":   "🧠 Ghi nhớ",
-		"memory_delete":  "🧠 Xóa bộ nhớ",
-		"memory_get":     "🧠 Đọc bộ nhớ",
-		"python":         "🐍 Chạy Python",
-		"js":             "⚙️ Chạy JavaScript",
-		"send_message":   "📨 Gửi tin nhắn",
-		"read_memory":    "🧠 Đọc bộ nhớ",
-		"search_memory":  "🧠 Tìm kiếm bộ nhớ",
-		"list_memory":    "🧠 Xem bộ nhớ",
-		"create_task":    "📋 Tạo nhiệm vụ",
-		"update_task":    "📋 Cập nhật nhiệm vụ",
-		"list_tasks":     "📋 Xem nhiệm vụ",
-		"get_task":       "📋 Xem nhiệm vụ",
-		"image_generate": "🎨 Tạo ảnh",
-		"tts":            "🔊 Tạo giọng nói",
-		"stt":            "🎤 Nhận dạng giọng nói",
-		"subagent":       "🤖 Giao việc cho trợ lý",
-		"spawn":          "🤖 Tạo trợ lý phụ",
-		"delegate":       "🤖 Ủy thác cho trợ lý",
-	}
-	if name, ok := names[toolName]; ok {
+	if name, ok := toolShortNames[toolName]; ok {
 		return name
 	}
 	return "⚙️ " + toolName

@@ -94,7 +94,7 @@ func stripGarbledToolXML(content string) string {
 	hasIndicator := false
 	lower := strings.ToLower(content)
 	for _, ind := range garbledToolXMLIndicators {
-		if strings.Contains(lower, strings.ToLower(ind)) {
+		if strings.Contains(lower, ind) {
 			hasIndicator = true
 			break
 		}
@@ -106,17 +106,14 @@ func stripGarbledToolXML(content string) string {
 	cleaned := garbledToolXMLPattern.ReplaceAllString(content, "")
 	cleaned = strings.TrimSpace(cleaned)
 
-	if cleaned != "" && hasIndicator {
-		slog.Warn("stripped garbled tool call response",
-			"original_len", len(content),
-			"remaining_len", len(cleaned),
-		)
-		return ""
-	}
-
 	if cleaned == "" {
 		slog.Warn("stripped entire response as garbled tool XML", "original_len", len(content))
+		return ""
 	}
+	slog.Warn("stripped garbled tool call response",
+		"original_len", len(content),
+		"remaining_len", len(cleaned),
+	)
 	return cleaned
 }
 

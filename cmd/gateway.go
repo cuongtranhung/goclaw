@@ -331,12 +331,14 @@ func runGateway() {
 			traceCollector = tracing.NewCollector(pgStores.Tracing)
 			traceCollector.Start()
 			// Clean up any traces left in "running" state by a previous crash or
-			// ungraceful shutdown.
-			if n, err := traceCollector.MarkOrphanTracesAborted(context.Background()); err != nil {
-				slog.Warn("tracing: failed to abort orphan traces", "error", err)
-			} else if n > 0 {
-				slog.Info("tracing: aborted orphan traces from previous run", "count", n)
-			}
+			// ungraceful shutdown. Run asynchronously to avoid delaying startup.
+			go func() {
+				if n, err := traceCollector.MarkOrphanTracesAborted(context.Background()); err != nil {
+					slog.Warn("tracing: failed to abort orphan traces", "error", err)
+				} else if n > 0 {
+					slog.Info("tracing: aborted orphan traces from previous run", "count", n)
+				}
+			}()
 			slog.Info("LLM tracing enabled")
 		}
 	} else {
@@ -470,10 +472,8 @@ func runGateway() {
 					continue
 				}
 				userSkillsDir := filepath.Join(workspace, e.Name(), ".agents", "skills")
-				if info, err := os.Stat(userSkillsDir); err == nil && info.IsDir() {
-					skillsLoader.AddSkillDir(userSkillsDir, "user-workspace")
-					slog.Info("skills: registered per-user skill dir", "dir", userSkillsDir)
-				}
+				skillsLoader.AddSkillDir(userSkillsDir, "user-workspace")
+				slog.Debug("skills: registered per-user skill dir candidate", "dir", userSkillsDir)
 			}
 		}
 	}
