@@ -14,6 +14,7 @@ const (
 	TraceStatusCompleted = "completed"
 	TraceStatusError     = "error"
 	TraceStatusCancelled = "cancelled"
+	TraceStatusAborted   = "aborted" // server restarted while run was in-flight
 )
 
 // Span type constants.
@@ -117,4 +118,9 @@ type TracingStore interface {
 	// Batch operations (async flush)
 	BatchCreateSpans(ctx context.Context, spans []SpanData) error
 	BatchUpdateTraceAggregates(ctx context.Context, traceID uuid.UUID) error
+
+	// MarkOrphanTracesAborted marks all traces still in "running" state as
+	// "aborted". Called once at server startup to clean up traces that were
+	// left open by a previous ungraceful shutdown / crash.
+	MarkOrphanTracesAborted(ctx context.Context) (int, error)
 }

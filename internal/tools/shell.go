@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -178,6 +179,14 @@ func (t *ExecTool) Parameters() map[string]interface{} {
 				"type":        "string",
 				"description": "Optional working directory for the command",
 			},
+			"as_file": map[string]interface{}{
+				"type":        "boolean",
+				"description": "If true, saves command output to a temporary file and returns it as a downloadable attachment (MEDIA: path). Useful for sending result files directly through chat.",
+			},
+			"filename": map[string]interface{}{
+				"type":        "string",
+				"description": "Optional filename hint for the output file when as_file=true (e.g. \"report.csv\", \"result.json\"). Determines file extension and thus how it is sent.",
+			},
 		},
 		"required": []string{"command"},
 	}
@@ -188,6 +197,8 @@ func (t *ExecTool) Execute(ctx context.Context, args map[string]interface{}) *Re
 	if command == "" {
 		return ErrorResult("command is required")
 	}
+	asFile, _ := args["as_file"].(bool)
+	filename, _ := args["filename"].(string)
 
 	// Check for dangerous commands (applies to both host and sandbox)
 	for _, pattern := range t.denyPatterns {
@@ -231,12 +242,38 @@ func (t *ExecTool) Execute(ctx context.Context, args map[string]interface{}) *Re
 
 	// Sandbox routing (sandboxKey from ctx — thread-safe)
 	sandboxKey := ToolSandboxKeyFromCtx(ctx)
+	var result *Result
 	if t.sandboxMgr != nil && sandboxKey != "" {
-		return t.executeInSandbox(ctx, command, cwd, sandboxKey)
+		result = t.executeInSandbox(ctx, command, cwd, sandboxKey)
+	} else {
+		result = t.executeOnHost(ctx, command, cwd)
 	}
 
-	// Host execution
-	return t.executeOnHost(ctx, command, cwd)
+	// as_file: save output to temp file and return MEDIA: path
+	if asFile && result != nil && !result.IsError {
+		result = saveOutputAsFile(result, filename)
+	}
+	return result
+}
+
+// saveOutputAsFile writes the tool result content to a temporary file and
+// returns a MEDIA: result so the channel layer will send it as an attachment.
+func saveOutputAsFile(r *Result, filename string) *Result {
+	ext := ".txt"
+	if filename != "" {
+		if e := filepath.Ext(filename); e != "" {
+			ext = e
+		}
+	}
+	f, err := os.CreateTemp("", "exec-output-*"+ext)
+	if err != nil {
+		return ErrorResult(fmt.Sprintf("as_file: create temp file: %v", err))
+	}
+	defer f.Close()
+	if _, err := f.WriteString(r.ForLLM); err != nil {
+		return ErrorResult(fmt.Sprintf("as_file: write temp file: %v", err))
+	}
+	return &Result{ForLLM: fmt.Sprintf("MEDIA:%s", f.Name())}
 }
 
 // executeOnHost runs a command directly on the host (original behavior).
@@ -244,7 +281,14 @@ func (t *ExecTool) executeOnHost(ctx context.Context, command, cwd string) *Resu
 	ctx, cancel := context.WithTimeout(ctx, t.timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "sh", "-c", command)
+	var cmd *exec.Cmd
+	if os.PathSeparator == '\\' {
+		// Windows: use cmd /C
+		cmd = exec.CommandContext(ctx, "cmd", "/C", command)
+	} else {
+		// Unix: use sh -c
+		cmd = exec.CommandContext(ctx, "sh", "-c", command)
+	}
 	cmd.Dir = cwd
 
 	var stdout, stderr bytes.Buffer

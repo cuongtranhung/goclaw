@@ -330,6 +330,13 @@ func runGateway() {
 		if pgStores.Tracing != nil {
 			traceCollector = tracing.NewCollector(pgStores.Tracing)
 			traceCollector.Start()
+			// Clean up any traces left in "running" state by a previous crash or
+			// ungraceful shutdown.
+			if n, err := traceCollector.MarkOrphanTracesAborted(context.Background()); err != nil {
+				slog.Warn("tracing: failed to abort orphan traces", "error", err)
+			} else if n > 0 {
+				slog.Info("tracing: aborted orphan traces from previous run", "count", n)
+			}
 			slog.Info("LLM tracing enabled")
 		}
 	} else {

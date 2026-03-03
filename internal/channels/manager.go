@@ -390,7 +390,19 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload interface{})
 	if eventType == protocol.AgentEventRunRetrying {
 		attempt := extractPayloadString(payload, "attempt")
 		maxAttempts := extractPayloadString(payload, "maxAttempts")
-		retryMsg := fmt.Sprintf("Provider busy, retrying... (%s/%s)", attempt, maxAttempts)
+		errStr := extractPayloadString(payload, "error")
+
+		// Shorten common long error messages for chat display
+		displayErr := errStr
+		if strings.Contains(errStr, "rate limit") || strings.Contains(errStr, "429") {
+			displayErr = "Rate limit reached"
+		} else if strings.Contains(errStr, "503") || strings.Contains(errStr, "overloaded") {
+			displayErr = "Provider overloaded"
+		} else if len(displayErr) > 60 {
+			displayErr = displayErr[:57] + "..."
+		}
+
+		retryMsg := fmt.Sprintf("Provider busy (%s), retrying... (%s/%s)", displayErr, attempt, maxAttempts)
 		m.bus.PublishOutbound(bus.OutboundMessage{
 			Channel: rc.ChannelName,
 			ChatID:  rc.ChatID,

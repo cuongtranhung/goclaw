@@ -99,6 +99,13 @@ func (c *Collector) Stop() {
 	slog.Info("tracing collector stopped")
 }
 
+// MarkOrphanTracesAborted marks any traces still in "running" state as
+// "aborted". Call once at startup to clean up after a crash or ungraceful
+// shutdown.
+func (c *Collector) MarkOrphanTracesAborted(ctx context.Context) (int, error) {
+	return c.store.MarkOrphanTracesAborted(ctx)
+}
+
 // CreateTrace synchronously creates a trace record.
 func (c *Collector) CreateTrace(ctx context.Context, trace *store.TraceData) error {
 	return c.store.CreateTrace(ctx, trace)

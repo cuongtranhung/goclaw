@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"mime"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -45,11 +43,7 @@ func NewMediaStore(client *Client, cfg config.MinIOMediaStoreConfig) *MediaStore
 // The local file is NOT deleted here — the caller (manager.go) skips the usual
 // os.Remove() when the URL is HTTP.
 func (m *MediaStore) UploadMedia(ctx context.Context, localPath, contentType string) (string, error) {
-	if contentType == "" {
-		contentType = inferContentType(localPath)
-	}
-
-	// Build object key: prefix + date subfolder + filename
+	// object key pattern: "{keyPrefix}{YYYY-MM-DD}/{basename}"
 	date := time.Now().UTC().Format("2006-01-02")
 	key := fmt.Sprintf("%s%s/%s", m.keyPrefix, date, filepath.Base(localPath))
 
@@ -73,28 +67,4 @@ func (m *MediaStore) UploadMedia(ctx context.Context, localPath, contentType str
 
 	slog.Debug("minio: media uploaded", "key", key, "url_len", len(presignedURL))
 	return presignedURL, nil
-}
-
-// inferContentType guesses MIME type from file extension, with a fallback read
-// for unknown extensions.
-func inferContentType(path string) string {
-	ext := filepath.Ext(path)
-	if ext != "" {
-		if mt := mime.TypeByExtension(ext); mt != "" {
-			return mt
-		}
-	}
-	// Sample first 512 bytes for content-type sniffing
-	f, err := os.Open(path)
-	if err != nil {
-		return "application/octet-stream"
-	}
-	defer f.Close()
-	buf := make([]byte, 512)
-	n, _ := f.Read(buf)
-	if n == 0 {
-		return "application/octet-stream"
-	}
-	// Go's net/http DetectContentType is available but not imported; return generic
-	return "application/octet-stream"
 }

@@ -338,6 +338,22 @@ func (s *PGTracingStore) BatchCreateSpans(ctx context.Context, spans []store.Spa
 	return firstErr
 }
 
+func (s *PGTracingStore) MarkOrphanTracesAborted(ctx context.Context) (int, error) {
+	now := time.Now().UTC()
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE traces
+		 SET status   = $1,
+		     error    = 'Server restarted while run was in-flight',
+		     end_time = $2
+		 WHERE status = 'running'`,
+		store.TraceStatusAborted, now)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
+}
+
 func (s *PGTracingStore) BatchUpdateTraceAggregates(ctx context.Context, traceID uuid.UUID) error {
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE traces SET

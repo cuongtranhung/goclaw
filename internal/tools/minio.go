@@ -316,20 +316,24 @@ func (t *MinioPresignTool) Execute(ctx context.Context, args map[string]interfac
 	}
 
 	expiryMin := 60
+	isDefaultExpiry := true
 	if v, ok := args["expires_minutes"].(float64); ok && v >= 0 {
 		expiryMin = int(v)
+		isDefaultExpiry = false
 		if expiryMin > 10080 {
 			expiryMin = 10080
 		}
 	}
 
-	// expires_minutes=0 → return permanent public URL (requires public_access=true on bucket)
-	if expiryMin == 0 {
-		if !t.client.IsPublic() {
-			return ErrorResult("minio_presign: expires_minutes=0 (permanent URL) requires public_access=true in MinIO config")
-		}
+	// Priority: If the bucket is public, return permanent URL for default expiry or explicitly 0
+	if t.client.IsPublic() && (isDefaultExpiry || expiryMin == 0) {
 		publicURL := t.client.PublicURL(key)
 		return NewResult(fmt.Sprintf("Permanent public URL for %q:\n\n%s", key, publicURL))
+	}
+
+	// expires_minutes=0 on a private bucket is an error
+	if expiryMin == 0 && !t.client.IsPublic() {
+		return ErrorResult("minio_presign: expires_minutes=0 (permanent URL) requires public_access=true in MinIO config")
 	}
 
 	presignedURL, err := t.client.PresignURL(ctx, key, time.Duration(expiryMin)*time.Minute)

@@ -7,8 +7,11 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"mime"
+	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -96,6 +99,9 @@ func (c *Client) Upload(ctx context.Context, key string, reader io.Reader, size 
 
 // UploadBytes uploads a byte slice to the given key.
 func (c *Client) UploadBytes(ctx context.Context, key string, data []byte, contentType string) error {
+	if contentType == "" {
+		contentType = DetectContentType(key, data)
+	}
 	return c.Upload(ctx, key, bytes.NewReader(data), int64(len(data)), contentType)
 }
 
@@ -113,7 +119,28 @@ func (c *Client) UploadFile(ctx context.Context, key, filePath, contentType stri
 		return fmt.Errorf("minio: stat %q: %w", filePath, err)
 	}
 
+	if contentType == "" {
+		// Sample first 512 bytes for sniffing
+		buf := make([]byte, 512)
+		n, _ := f.ReadAt(buf, 0)
+		contentType = DetectContentType(filePath, buf[:n])
+	}
+
 	return c.Upload(ctx, key, f, fi.Size(), contentType)
+}
+
+// DetectContentType returns a MIME type inferred from the filename extension
+// or content sniffing (http.DetectContentType).
+func DetectContentType(name string, data []byte) string {
+	if ext := filepath.Ext(name); ext != "" {
+		if ct := mime.TypeByExtension(ext); ct != "" {
+			return ct
+		}
+	}
+	if len(data) > 0 {
+		return http.DetectContentType(data)
+	}
+	return "application/octet-stream"
 }
 
 // Download returns a reader for the given key plus its object metadata.
