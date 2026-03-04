@@ -118,6 +118,7 @@ func (ds *DraftStream) flush(ctx context.Context) error {
 			return err
 		}
 		ds.messageID = msg.MessageID
+		slog.Debug("stream: draft stream message created", "chat_id", ds.chatID, "message_id", ds.messageID)
 	} else {
 		// Edit existing message
 		editMsg := tu.EditMessageText(tu.ID(ds.chatID), ds.messageID, htmlText)
@@ -418,6 +419,7 @@ func (c *Channel) OnStreamEnd(ctx context.Context, chatID string, _ string) erro
 
 	// Hand the DraftStream message back as a placeholder so Send() will
 	// edit it with the final formatted content instead of creating a new message.
+	slog.Debug("stream: OnStreamEnd", "chat_id", chatID, "draft_msg_id", msgID)
 	if msgID != 0 {
 		c.placeholders.Store(chatID, msgID)
 	}

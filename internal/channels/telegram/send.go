@@ -49,6 +49,14 @@ func (c *Channel) Send(ctx context.Context, msg bus.OutboundMessage) error {
 		localKey = lk
 	}
 
+	_, hasPlaceholder := c.placeholders.Load(localKey)
+	slog.Debug("telegram: Send() called",
+		"local_key", localKey,
+		"content_len", len(msg.Content),
+		"has_placeholder", hasPlaceholder,
+		"has_media", len(msg.Media) > 0,
+	)
+
 	// Parse raw Telegram chat ID (strips :topic:N suffix).
 	chatID, err := parseRawChatID(localKey)
 	if err != nil {
@@ -116,6 +124,11 @@ func (c *Channel) Send(ctx context.Context, msg bus.OutboundMessage) error {
 		c.placeholders.Delete(localKey)
 		if len(htmlContent) <= telegramMaxMessageLen {
 			if err := c.editMessage(ctx, chatID, pID.(int), htmlContent); err == nil {
+				slog.Info("telegram: response delivered via edit",
+					"local_key", localKey,
+					"msg_id", pID.(int),
+					"content_len", len(htmlContent),
+				)
 				return nil
 			}
 		}
@@ -134,6 +147,11 @@ func (c *Channel) Send(ctx context.Context, msg bus.OutboundMessage) error {
 		if err := c.sendHTML(ctx, chatID, chunk, replyTo, threadID); err != nil {
 			return err
 		}
+		slog.Info("telegram: response delivered via send",
+			"local_key", localKey,
+			"chunk", i+1,
+			"total_chunks", len(chunks),
+		)
 	}
 	return nil
 }

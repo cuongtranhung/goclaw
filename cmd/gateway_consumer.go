@@ -216,6 +216,12 @@ func consumeInboundMessages(ctx context.Context, msgBus *bus.MessageBus, agents 
 
 			// Suppress empty/NO_REPLY responses (matching TS normalize-reply.ts).
 			// Still publish an empty outbound so channels can clean up placeholder/thinking indicators.
+			slog.Debug("inbound: agent run result",
+				"channel", channel,
+				"chat_id", chatID,
+				"content_len", len(outcome.Result.Content),
+				"is_silent", agent.IsSilentReply(outcome.Result.Content),
+			)
 			if outcome.Result.Content == "" || agent.IsSilentReply(outcome.Result.Content) {
 				slog.Info("inbound: suppressed silent/empty reply",
 					"channel", channel,

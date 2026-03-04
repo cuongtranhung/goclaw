@@ -160,6 +160,7 @@ func (m *Manager) dispatchOutbound(ctx context.Context) {
 				}
 			}
 
+			slog.Debug("outbound: dispatching to channel", "channel", msg.Channel, "chat_id", msg.ChatID, "content_len", len(msg.Content))
 			if err := channel.Send(ctx, msg); err != nil {
 				slog.Error("error sending message to channel",
 					"channel", msg.Channel,
