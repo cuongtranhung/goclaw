@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "highlight.js/styles/github.min.css";
 @plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
@@ -135,5 +136,30 @@
     @apply bg-background text-foreground;
     font-family: system-ui, -apple-system, sans-serif;
   }
-
 }
+
+/* highlight.js: transparent bg, container handles it */
+.hljs { background: transparent !important; }
+
+/* Dark mode syntax colors (github-dark palette) */
+.dark .hljs { color: #e6edf3; }
+.dark .hljs-comment,
+.dark .hljs-quote { color: #8b949e; }
+.dark .hljs-keyword,
+.dark .hljs-selector-tag,
+.dark .hljs-type { color: #ff7b72; }
+.dark .hljs-string,
+.dark .hljs-addition { color: #a5d6ff; }
+.dark .hljs-number,
+.dark .hljs-literal { color: #79c0ff; }
+.dark .hljs-title,
+.dark .hljs-section,
+.dark .hljs-attr { color: #d2a8ff; }
+.dark .hljs-name,
+.dark .hljs-tag { color: #7ee787; }
+.dark .hljs-built_in,
+.dark .hljs-symbol { color: #ffa657; }
+.dark .hljs-variable,
+.dark .hljs-template-variable { color: #ffa657; }
+.dark .hljs-deletion { color: #ffa198; background: rgba(255,129,130,0.15); }
+.dark .hljs-addition { background: rgba(63,185,80,0.15); }
