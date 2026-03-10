@@ -14,6 +14,9 @@ export interface SessionInfo {
   userID?: string;
   metadata?: Record<string, string>;
   agentName?: string;
+  estimatedTokens?: number;
+  contextWindow?: number;
+  compactionCount?: number;
 }
 
 export interface SessionPreview {

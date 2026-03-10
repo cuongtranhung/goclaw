@@ -9,9 +9,12 @@
   "columns": {
     "session": "Session",
     "agent": "Agent",
-    "channel": "Channel",
+    "context": "上下文",
     "messages": "消息",
     "updated": "更新时间"
+  },
+  "contextBar": {
+    "compacted": "已压缩 {{count}} 次"
   },
   "detail": {
     "reset": "重置",

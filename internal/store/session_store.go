@@ -65,11 +65,14 @@ type SessionListResult struct {
 // SessionInfoRich is an enriched session info for API responses (includes model, tokens, agent name).
 type SessionInfoRich struct {
 	SessionInfo
-	Model        string `json:"model,omitempty"`
-	Provider     string `json:"provider,omitempty"`
-	InputTokens  int64  `json:"inputTokens,omitempty"`
-	OutputTokens int64  `json:"outputTokens,omitempty"`
-	AgentName    string `json:"agentName,omitempty"`
+	Model           string `json:"model,omitempty"`
+	Provider        string `json:"provider,omitempty"`
+	InputTokens     int64  `json:"inputTokens,omitempty"`
+	OutputTokens    int64  `json:"outputTokens,omitempty"`
+	AgentName       string `json:"agentName,omitempty"`
+	EstimatedTokens int    `json:"estimatedTokens,omitempty"` // estimated current context tokens (messages bytes/4 + 12k system prompt)
+	ContextWindow   int    `json:"contextWindow,omitempty"`   // agent's context window size
+	CompactionCount int    `json:"compactionCount,omitempty"` // number of compactions performed
 }
 
 // SessionListRichResult is the paginated result of ListPagedRich.

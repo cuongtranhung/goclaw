@@ -9,9 +9,12 @@
   "columns": {
     "session": "Session",
     "agent": "Agent",
-    "channel": "Channel",
+    "context": "Context",
     "messages": "Messages",
     "updated": "Updated"
+  },
+  "contextBar": {
+    "compacted": "Compacted {{count}} time(s)"
   },
   "detail": {
     "reset": "Reset",

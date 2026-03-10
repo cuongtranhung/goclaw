@@ -9,9 +9,12 @@
   "columns": {
     "session": "Session",
     "agent": "Agent",
-    "channel": "Channel",
+    "context": "Ngữ cảnh",
     "messages": "Tin nhắn",
     "updated": "Cập nhật"
+  },
+  "contextBar": {
+    "compacted": "Đã nén {{count}} lần"
   },
   "detail": {
     "reset": "Đặt lại",

@@ -161,7 +161,10 @@ func (s *PGSessionStore) ListPagedRich(opts store.SessionListOpts) store.Session
 	const richCols = `s.session_key, jsonb_array_length(s.messages), s.created_at, s.updated_at,
 		s.label, s.channel, s.user_id, COALESCE(s.metadata, '{}'),
 		s.model, s.provider, s.input_tokens, s.output_tokens,
-		COALESCE(a.display_name, '')`
+		COALESCE(a.display_name, ''),
+		octet_length(s.messages::text) / 4 + 12000,
+		COALESCE(a.context_window, 200000),
+		s.compaction_count`
 
 	if opts.AgentID != "" {
 		selectQ = `SELECT ` + richCols + `
@@ -191,8 +194,10 @@ func (s *PGSessionStore) ListPagedRich(opts store.SessionListOpts) store.Session
 		var model, provider *string
 		var inputTokens, outputTokens int64
 		var agentName string
+		var estimatedTokens, contextWindow, compactionCount int
 		if err := rows.Scan(&key, &msgCount, &createdAt, &updatedAt, &label, &channel, &userID, &metaJSON,
-			&model, &provider, &inputTokens, &outputTokens, &agentName); err != nil {
+			&model, &provider, &inputTokens, &outputTokens, &agentName,
+			&estimatedTokens, &contextWindow, &compactionCount); err != nil {
 			continue
 		}
 		var meta map[string]string
@@ -210,11 +215,14 @@ func (s *PGSessionStore) ListPagedRich(opts store.SessionListOpts) store.Session
 				UserID:       derefStr(userID),
 				Metadata:     meta,
 			},
-			Model:        derefStr(model),
-			Provider:     derefStr(provider),
-			InputTokens:  inputTokens,
-			OutputTokens: outputTokens,
-			AgentName:    agentName,
+			Model:           derefStr(model),
+			Provider:        derefStr(provider),
+			InputTokens:     inputTokens,
+			OutputTokens:    outputTokens,
+			AgentName:       agentName,
+			EstimatedTokens: estimatedTokens,
+			ContextWindow:   contextWindow,
+			CompactionCount: compactionCount,
 		})
 	}
 	if result == nil {
